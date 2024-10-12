@@ -1,0 +1,13 @@
+# Exception venv/
+venv/
+
+# Exception .mypy_cache
+.mypy_cache/
+
+info.txt
+
+utils.py
+
+log/logging.log
+
+__pycache__/
