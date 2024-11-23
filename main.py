@@ -1,14 +1,19 @@
 import asyncio
+
 import logging
 
 from aiogram import Bot, Dispatcher
 
 from app.handlers import router
 
-TOKEN = '7479878968:AAGGk5BaXBPlnWN_upsc5s56Y6peme62r1g'
+from settings import token, send_message_hour, send_message_minute
 
-LOG_FORMAT = ("[%(asctime)s.%(msecs)03d]"
-              "%(module)s:%(lineno)d %(levelname)-7s - %(message)s")
+from app.database import id_telegram_users, checklist, worker_speciality
+
+from apscheduler.schedulers.asyncio import AsyncIOScheduler
+
+bot = Bot(token=token)
+dp = Dispatcher()
 
 
 async def main():
@@ -16,15 +21,51 @@ async def main():
     Основная функция бота, которая выполняет создание объектов,
     мониторинг апдейтов и передачу апдейтов в обработчики.
     """
-    bot = Bot(token=TOKEN)
-    dp = Dispatcher()
+    logging.info('Запуск бота.')
+    scheduler = AsyncIOScheduler(timezone='Europe/Moscow')
+    scheduler.add_job(
+        notifications_sandler,
+        trigger='cron',
+        hour=send_message_hour,
+        minute=send_message_minute
+        )
+    scheduler.start()
 
     # Подключает к диспетчеру все обработчики, которые используют router.
     dp.include_router(router)
+    await bot.delete_webhook()
     await dp.start_polling(bot)
+
+
+async def notifications_sandler():
+    result = checklist()
+    logging.info('[notifications_sandler] - Начал работу.')
+    logging.info(f'[notifications_sandler] - Найдено {len(result)} записей '
+                 'для уведомлений.')
+    for i in result:
+        message = (
+            'Доброго времени суток!\n'
+            f'Вы записаны {i[0]} в {i[1]} к {worker_speciality(i[3])}\n'
+            'Ждем Вас в нашей клинике.\n'
+            'Наш адрес: ул. Ивана Захарова, 1\n'
+            'Телефон для связи: +7 999 999-99-99'
+        )
+        try:
+            logging.info('[notifications_sandler] - Отправка сообщения '
+                         f'пользователю {id_telegram_users(i[2])}.')
+            await bot.send_message(chat_id=str(id_telegram_users(i[2])),
+                                   text=message)
+        except Exception as e:
+            logging.error('[notifications_sandler] - Ошибка при отправке '
+                          f'сообщения: {e}')
+    logging.info('[notifications_sandler] - Закончил работу.')
+
 
 if __name__ == '__main__':
     logging.basicConfig(level=logging.INFO,
                         filename=r'log\logging.log',
-                        format=LOG_FORMAT)
+                        format=("[%(asctime)s.%(msecs)03d]"
+                                "%(module)s:%(lineno)d "
+                                "%(levelname)-7s - %(message)s"),
+                        encoding='utf-8')
     asyncio.run(main())
