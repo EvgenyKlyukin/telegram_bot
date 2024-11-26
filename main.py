@@ -2,7 +2,7 @@ import asyncio
 
 import logging
 
-from aiogram import Bot, Dispatcher
+from aiogram import Bot, Dispatcher, F
 
 from app.handlers import router
 
@@ -11,6 +11,10 @@ from settings import token, send_message_hour, send_message_minute
 from app.database import id_telegram_users, checklist, worker_speciality
 
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
+
+from app.keyboards import survey_keyboard
+
+from aiogram.types import CallbackQuery
 
 bot = Bot(token=token)
 dp = Dispatcher()
@@ -54,11 +58,26 @@ async def notifications_sandler():
             logging.info('[notifications_sandler] - Отправка сообщения '
                          f'пользователю {id_telegram_users(i[2])}.')
             await bot.send_message(chat_id=str(id_telegram_users(i[2])),
-                                   text=message)
+                                   text=message,
+                                   reply_markup=survey_keyboard)
         except Exception as e:
             logging.error('[notifications_sandler] - Ошибка при отправке '
                           f'сообщения: {e}')
     logging.info('[notifications_sandler] - Закончил работу.')
+
+
+@dp.callback_query(F.data == 'Подтверждаю')
+async def process_callback_accept(call: CallbackQuery):
+    await bot.delete_message(chat_id=call.from_user.id,
+                             message_id=call.message.message_id)
+    await call.message.answer('Запись подтверждена')
+
+
+@dp.callback_query(F.data == 'Отменить запись')
+async def process_callback_accept(call: CallbackQuery):
+    await bot.delete_message(chat_id=call.from_user.id,
+                             message_id=call.message.message_id)
+    await call.message.answer('Запись отменена')
 
 
 if __name__ == '__main__':
